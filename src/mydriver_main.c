@@ -17,7 +17,7 @@
 
 #include <iodefine.h>
 #include "drv/board.h"
-#include "drv/port/drv_port.h"
+#include "drv/port/port.h"
 #include "drv/cmt/cmt.h"
 #include "rx_utils/rx_utils.h"
 
