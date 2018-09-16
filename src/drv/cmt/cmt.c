@@ -6,8 +6,8 @@
 #include <iodefine.h>
 #include "../../rx_utils/rx_utils.h"
 #include "../sysconfig.h"
+#include "cmt.h"
 
-#include "drv_timer.h"
 
 typedef struct timer_data {
 	timer_handler_t handler; // ハンドラ
@@ -39,7 +39,7 @@ static void timer_proc(timer_data_t *ptimer);
  * タイマードライバモジュールを初期化する。
  */
 void
-drv_timer_init(void)
+drv_cmt_init(void)
 {
 	int i;
 	for (i = 0; i < TIMER_COUNT; i++) {
@@ -70,7 +70,7 @@ drv_timer_init(void)
  * @param arg タイマーハンドラに渡す引数
  */
 void
-drv_timer_start(uint8_t timer_no, uint32_t interval_msec,
+drv_cmt_start(uint8_t timer_no, uint32_t interval_msec,
 		timer_handler_t handler, void *arg)
 {
 	switch (timer_no) {
@@ -89,7 +89,7 @@ drv_timer_start(uint8_t timer_no, uint32_t interval_msec,
  * @param timer_no タイマー番号
  */
 void
-drv_timer_stop(uint8_t timer_no)
+drv_cmt_stop(uint8_t timer_no)
 {
 	switch (timer_no) {
 	case TIMER_NO_1:

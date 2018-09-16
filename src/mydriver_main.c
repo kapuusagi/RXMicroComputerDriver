@@ -1,3 +1,4 @@
+
 /***********************************************************************/
 /*                                                                     */
 /*  FILE        : Main.c                                   */
@@ -17,7 +18,7 @@
 #include <iodefine.h>
 #include "drv/board.h"
 #include "drv/port/drv_port.h"
-#include "drv/timer/drv_timer.h"
+#include "drv/cmt/cmt.h"
 #include "rx_utils/rx_utils.h"
 
 void main(void);
@@ -43,9 +44,9 @@ main(void)
 {
 	board_init_on_reset();
 	drv_port_init();
-	drv_timer_init();
+	drv_cmt_init();
 
-	drv_timer_start(TIMER_NO_1, 5000, timer_task, 0);
+	drv_cmt_start(TIMER_NO_1, 5000, timer_task, 0);
 
     while(1) {
     	nop();

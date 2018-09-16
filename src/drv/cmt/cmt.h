@@ -9,9 +9,9 @@ enum {
 
 typedef void (*timer_handler_t)(void *arg);
 
-void drv_timer_init(void);
-void drv_timer_start(uint8_t timer_no, uint32_t interval_msec,
+void drv_cmt_init(void);
+void drv_cmt_start(uint8_t timer_no, uint32_t interval_msec,
 		timer_handler_t handler, void *arg);
-void drv_timer_stop(uint8_t timer_no);
+void drv_cmt_stop(uint8_t timer_no);
 
 #endif /* DRV_TIMER_H */
