@@ -112,8 +112,8 @@ void Excep_ICU_SWINT(void);
 //void Excep_CMT0_CMI0(void);
 
 // CMT1 CMI1
-#pragma interrupt (Excep_CMT1_CMI1(vect=29))
-void Excep_CMT1_CMI1(void);
+//#pragma interrupt (Excep_CMT1_CMI1(vect=29))
+//void Excep_CMT1_CMI1(void);
 
 // CMTW0 CMWI0
 #pragma interrupt (Excep_CMTW0_CMWI0(vect=30))

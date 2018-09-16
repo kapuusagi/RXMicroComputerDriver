@@ -5,6 +5,7 @@
 
 enum {
 	TIMER_NO_1 = 0,
+	TIMER_NO_2
 };
 
 typedef void (*timer_handler_t)(void *arg);

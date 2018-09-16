@@ -16,7 +16,7 @@ typedef struct timer_data {
 	uint32_t interval_millis; // インターバル間隔
 } timer_data_t;
 
-#define TIMER_COUNT 1
+#define TIMER_COUNT 2
 
 static timer_data_t TimerData[TIMER_COUNT];
 
@@ -52,11 +52,18 @@ drv_cmt_init(void)
 
 	IPR(CMT0, CMI0) = TIMER_INT_PRIORITY;
 	IEN(CMT0, CMI0) = 1;
+	IPR(CMT1, CMI1) = TIMER_INT_PRIORITY;
+	IEN(CMT1, CMI1) = 1;
 
 	CMT0.CMCOR = TIMER_CMCOR_1MS;
 	CMT0.CMCR.BIT.CKS = 0; // PLL/8
 	CMT0.CMCNT = 0;
 	CMT.CMSTR0.BIT.STR0 = 0;
+
+	CMT1.CMCOR = TIMER_CMCOR_1MS;
+	CMT1.CMCR.BIT.CKS = 0; // PLL/8
+	CMT1.CMCNT = 0;
+	CMT.CMSTR0.BIT.STR1 = 0;
 
 	return ;
 }
@@ -80,6 +87,12 @@ drv_cmt_start(uint8_t timer_no, uint32_t interval_msec,
 		CMT0.CMCNT = 0; // カウンタクリア
 		CMT.CMSTR0.BIT.STR0 = 1; // タイマー開始
 		break;
+	case TIMER_NO_2:
+		timer_set(&TimerData[1], interval_msec, handler, arg);
+		CMT1.CMCR.BIT.CMIE = 1; // 割り込み有効
+		CMT1.CMCNT = 0; // カウンタクリア
+		CMT.CMSTR0.BIT.STR1 = 1; // タイマー開始
+		break;
 	}
 }
 
@@ -97,6 +110,11 @@ drv_cmt_stop(uint8_t timer_no)
 		CMT.CMSTR0.BIT.STR0 = 0; // タイマー停止
 		timer_unset(&TimerData[0]);
 		break;
+	case TIMER_NO_2:
+		CMT1.CMCR.BIT.CMIE = 0; // 割り込み停止
+		CMT.CMSTR0.BIT.STR1 = 0; // タイマー停止
+		timer_unset(&TimerData[1]);
+		break;
 	}
 }
 
@@ -107,6 +125,7 @@ drv_cmt_stop(uint8_t timer_no)
  * コメントアウトすること。
  */
 #pragma interrupt (cmt0_cmi0_isr(vect=VECT(CMT0, CMI0)))
+#pragma interrupt (cmt1_cmi1_isr(vect=VECT(CMT1, CMI1)))
 
 /**
  * タイマー割り込みハンドラ
@@ -119,6 +138,16 @@ cmt0_cmi0_isr(void)
 	timer_proc(&TimerData[0]);
 	CMT0.CMCR.BIT.CMIE = 1; // 割り込み有効
 }
+
+static void
+cmt1_cmi1_isr(void)
+{
+	CMT1.CMCR.BIT.CMIE = 0; // 割り込み停止
+	IR(CMT1, CMI1) = 0;
+	timer_proc(&TimerData[1]);
+	CMT1.CMCR.BIT.CMIE = 1; // 割り込み有効
+}
+
 
 /**
  * タイマーデータを初期化する。

@@ -16,9 +16,11 @@
 #endif
 
 #include <iodefine.h>
+#include <machine.h>
 #include "drv/board.h"
 #include "drv/port/port.h"
 #include "drv/cmt/cmt.h"
+#include "drv/s12ad/s12ad.h"
 #include "rx_utils/rx_utils.h"
 
 void main(void);
@@ -39,14 +41,24 @@ timer_task(void *arg)
 	drv_port_update_output();
 }
 
+static void
+timer_task_1ms(void *arg)
+{
+	drv_s12ad_update();
+}
+
 void
 main(void)
 {
 	board_init_on_reset();
 	drv_port_init();
 	drv_cmt_init();
+	drv_s12ad_init();
+
+	drv_s12ad_start(AD_CHANNEL_1);
 
 	drv_cmt_start(TIMER_NO_1, 5000, timer_task, 0);
+	drv_cmt_start(TIMER_NO_2, 1, timer_task_1ms, 0);
 
     while(1) {
     	nop();
