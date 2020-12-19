@@ -60,9 +60,7 @@ main(void)
 	drv_cmt_start(TIMER_NO_1, 5000, timer_task, 0);
 	drv_cmt_start(TIMER_NO_2, 1, timer_task_1ms, 0);
 
-    while(1) {
-    	nop();
-    }
+	rx_util_wait();
 
 }
 

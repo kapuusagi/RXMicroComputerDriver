@@ -1,3 +1,6 @@
+/**
+ * @file CMTドライバ
+ */
 #ifndef DRV_CMT_H
 #define DRV_CMT_H
 

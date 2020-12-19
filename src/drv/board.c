@@ -1,285 +1,180 @@
-#include "board.h"
 #include <iodefine.h>
 #include "../rx_utils/rx_utils.h"
+#include "board.h"
 
-static void operating_frequency_set (void);
-static void clock_source_select (void);
+/* クロックソース */
+#define USE_PLLSRC_TO_HOCO           1
+
+#if USE_PLLSRC_TO_HOCO == 0
+/* 外部発振器(12MHz)を使用するかどうか。 */
+#define USE_EXT_OSCILLATOR 0
+#endif
+
+#if (USE_EXT_OSCILLATOR == 0)
+#endif
+
+static void set_mainclock_to_PLL(void);
+static void disable_subclock(void);
 
 /**
- * リセット時の初期化を行う。
+ * ウェークアップする。
  */
 void
 board_init_on_reset(void)
 {
-	operating_frequency_set();
+	SYSTEM.PRCR.WORD = 0xA503; /* プロテクト解除 */
+	/* P36 XTAL, P37 EXTALを設定 */
+	RX_UTIL_SET_INPUT_FUNC_PORT(PORT3, B7);
+	RX_UTIL_SET_OUTPUT_FUNC_PORT(PORT3, B6);
 
+
+	set_mainclock_to_PLL();
+	disable_subclock();
+
+	SYSTEM.PRCR.WORD = 0xA500; /* プロテクト */
+}
+
+/**
+ * メインクロックをPLLに切り替える。
+ */
+static void
+set_mainclock_to_PLL(void)
+{
+#if USE_PLLSRC_TO_HOCO
+	SYSTEM.MOSCCR.BIT.MOSTP = 1; /* メインクロック発振停止 */
+	/* メインクロック発振停止待ち */
+	while (SYSTEM.OSCOVFSR.BIT.MOOVF != 0) {
+		rx_util_nop();
+	}
+
+	/* 内部リセット解除後、HOCOCR2 レジスタのHCFRQ[1:0] ビットで周波数を設定 */
+	SYSTEM.HOCOCR2.BIT.HCFRQ = 0; /* HOCO 16MHz */
+
+	/* HOCOCR レジスタのHCSTP ビットでHOCO クロックを動作に設定。
+	 * 但し、OFS1.HOCOENが0であれば設定する必要は無し。 */
+	if (OFSM.OFS1.BIT.HOCOEN != 0) {
+		/* リセット後、HOCOで動作していないので動作させる。 */
+		SYSTEM.HOCOCR.BIT.HCSTP = 0; /* HOCO動作 */
+		/* HOCO発振安定待ち */
+		while (SYSTEM.OSCOVFSR.BIT.HCOVF == 0) {
+			rx_util_nop();
+		}
+	}
+
+	/* ROMWT レジスタのROMWT[1:0] ビットを“10b” に設定 */
+	SYSTEM.ROMWT.BIT.ROMWT = 2; /* 2ウェイト */
+	while (SYSTEM.ROMWT.BIT.ROMWT != 2) {
+		rx_util_nop();
+	}
+
+	/* SCKCR
+	 * b31-b28:2 4分周 FCLK = 240MHz/4 = 60MHz
+	 * b27-b24:1 2分周 ICLK = 240MHz/2 = 120MHz
+	 * b23: 1 BCLK端子出力禁止(Hi-Z)
+	 * b22: 1 SDCLK端子出力禁止(Hi-Z)
+	 * b21-b20:0 (reserved)
+	 * b19-b16:2 4分周 BCK = 240MHz/4 = 60MHz
+	 * b15-b12:1 2分周 PCLKA = 240MHz/2 = 120MHz
+	 * b11-b8:2 4分周 PCLKB = 240MHz/4 = 60MHz
+	 * b7-b4:3 8分周 PCLKC = 240MHz/8 = 30MHz
+	 * b3-b0:3 8分周 PCLKD = 240MHz/8 = 30MH
+	 */
+	SYSTEM.SCKCR.LONG = 0x21c21233;
+	SYSTEM.SCKCR2.BIT.UCK = 4; /* 5分周 240MHz/5 = 48MHz */
+
+	SYSTEM.PLLCR.BIT.PLIDIV = 0; /* 1分周 */
+	SYSTEM.PLLCR.BIT.STC = 0x1d; /* 15逓倍 */
+	SYSTEM.PLLCR.BIT.PLLSRCSEL = 1; /* PLL入力はHOCO */
+	SYSTEM.PLLCR2.BIT.PLLEN = 0; /* PLL開始 */
+
+	/* PLL動作待ち */
+	while (SYSTEM.OSCOVFSR.BIT.PLOVF == 0) {
+		rx_util_nop();
+	}
+
+	SYSTEM.SCKCR3.BIT.CKSEL = 4; /* PLL回路選択 */
 
 	return ;
+#else
+	SYSTEM.MOSCCR.BIT.MOSTP = 1; /* メインクロック発振停止 */
+	/* メインクロック発振停止待ち */
+	while (SYSTEM.OSCOVFSR.BIT.MOOVF != 0) {
+		rx_util_nop();
+	}
+
+#if USE_EXT_OSCILLATOR
+	/* 外部クロック 12MHｚが入っているはずだが、PLLが発振安定しない */
+	SYSTEM.MOFCR.BIT.MOFXIN = 0;
+	SYSTEM.MOFCR.BIT.MODRV2 = 2; /* 12MHz入力 */
+	SYSTEM.MOFCR.BIT.MOSEL = 1; /* 外部クロック入力 */
+#else
+	SYSTEM.MOFCR.BIT.MOSEL = 0; /* 内蔵発振子を使用する */
+	SYSTEM.MOFCR.BIT.MODRV2 = 2; /* 8-16MHz */
+	SYSTEM.MOSCWTCR.BYTE = 0x53; /* 発振ウェイトコントロール */
+	SYSTEM.MOSCCR.BIT.MOSTP = 0; /* メインクロック発振動作 */
+	/* メインクロック発振安定待ち */
+	while (SYSTEM.OSCOVFSR.BIT.MOOVF != 1) {
+		rx_util_nop();
+	}
+#endif
+
+	SYSTEM.ROMWT.BIT.ROMWT = 2; /* 2ウェイト */
+	while (SYSTEM.ROMWT.BIT.ROMWT != 2) {
+		rx_util_nop();
+	}
+
+
+	/* SCKCR
+	 * b31-b28:2 4分周 FCLK = 240MHz/4 = 60MHz
+	 * b27-b24:1 2分周 ICLK = 240MHz/2 = 120MHz
+	 * b23: 1 BCLK端子出力禁止(Hi-Z)
+	 * b22: 1 SDCLK端子出力禁止(Hi-Z)
+	 * b21-b20:0 (reserved)
+	 * b19-b16:2 4分周 BCK = 240MHz/4 = 60MHz
+	 * b15-b12:1 2分周 PCLKA = 240MHz/2 = 120MHz
+	 * b11-b8:2 4分周 PCLKB = 240MHz/4 = 60MHz
+	 * b7-b4:3 8分周 PCLKC = 240MHz/8 = 30MHz
+	 * b3-b0:3 8分周 PCLKD = 240MHz/8 = 30MH
+	 */
+	SYSTEM.SCKCR.LONG = 0x21c21233;
+	SYSTEM.SCKCR2.BIT.UCK = 4; /* 5分周 240MHz/5 = 48MHz */
+
+	SYSTEM.PLLCR.BIT.PLIDIV = 0; /* 1分周 */
+	SYSTEM.PLLCR.BIT.STC = 0x27; /* 20逓倍 */
+	SYSTEM.PLLCR.BIT.PLLSRCSEL = 0; /* PLL入力はメインクロック発振器 */
+	SYSTEM.PLLCR2.BIT.PLLEN = 0; /* PLL開始 */
+
+	/* PLL動作待ち */
+	while (SYSTEM.OSCOVFSR.BIT.PLOVF == 0) {
+		rx_util_nop();
+	}
+
+	SYSTEM.SCKCR3.BIT.CKSEL = 4; /* PLL回路選択 */
+
+	return ;
+#endif
 }
 
-
-
-/***********************************************************************************************************************
-* Function name: operating_frequency_set
-* Description  : Configures the clock settings for each of the device clocks
-* Arguments    : none
-* Return value : none
-***********************************************************************************************************************/
+/**
+ * サブクロックを使用しないため発振停止する。
+ */
 static void
-operating_frequency_set (void)
+disable_subclock(void)
 {
-	/* このソースはRX65N Evaluation Kitのサンプルコードから
-	 * マクロで有効になった部分だけを抜粋してきた。 */
+	RTC.RCR4.BIT.RCKSEL = 0; /* サブクロック選択 */
+	RTC.RCR3.BIT.RTCEN = 0; /* サブクロック発振停止 */
+	while (RTC.RCR3.BIT.RTCEN != 0) {
+		rx_util_nop();
+	}
+	SYSTEM.SOSCCR.BIT.SOSTP = 1; /* サブクロック発振停止 */
+	while (SYSTEM.SOSCCR.BIT.SOSTP != 1) {
+		rx_util_nop();
+	}
 
-    /* Used for constructing value to write to SCKCR register. */
-    uint32_t sckcr;
-    uint16_t sckcr2;
+	/* 発振停止待ち */
+	while (SYSTEM.OSCOVFSR.BIT.SOOVF != 0) {
+		rx_util_nop();
+	}
 
-    /*
-    Default settings:
-    Clock Description              Frequency
-    ----------------------------------------
-    Input Clock Frequency............  24 MHz
-    PLL frequency (x10).............. 240 MHz
-    Internal Clock Frequency......... 120 MHz
-    Peripheral Clock Frequency A..... 120 MHz
-    Peripheral Clock Frequency B.....  60 MHz
-    Peripheral Clock Frequency C.....  60 MHz
-    Peripheral Clock Frequency D.....  60 MHz
-    Flash IF Clock Frequency.........  60 MHz
-    External Bus Clock Frequency..... 120 MHz
-    USB Clock Frequency..............  48 MHz */
-
-    /* Protect off. */
-    SYSTEM.PRCR.WORD = 0xA50B;
-
-    /* Select the clock based upon user's choice. */
-    clock_source_select();
-
-    sckcr = 0;
-
-    /* Figure out setting for FCK bits. */
-    sckcr |= 0x20000000; // FCK = PCLK x 1/4
-
-    /* Figure out setting for ICK bits. */
-    sckcr |= 0x01000000; // ICK = PCLK x 1/2
-
-    /* Figure out setting for BCK bits. */
-    sckcr |= 0x00010000; // BCK = PCK x 1/2
-
-    /* Configure PSTOP1 bit for BCLK output. */
-    /* Set PSTOP1 bit */
-    sckcr |= 0x00800000; // BCLK stop.
-
-    /* Configure PSTOP0 bit for SDCLK output. */
-    /* Set PSTOP0 bit */
-    sckcr |= 0x00400000; // SDCLK stop.
-
-    /* Figure out setting for PCKA bits. */
-    sckcr |= 0x00001000; // PCKA = PCLK x 1/2
-
-    /* Figure out setting for PCKB bits. */
-    sckcr |= 0x00000200; // PCKB = PCLK x 1/4
-
-    /* Figure out setting for PCKC bits. */
-    sckcr |= 0x00000020; // PCKC = PCLK x 1/4
-
-    /* Figure out setting for PCKD bits. */
-    sckcr |= 0x00000002; // PCKD = PCLK x 1/4
-
-    /* Set SCKCR register. */
-    SYSTEM.SCKCR.LONG = sckcr;
-
-
-    sckcr2 = 0;
-
-    /* Figure out setting for UCK bits. */
-    sckcr2 |= 0x0041; // UCK = PCLK/5
-
-    /* Set SCKCR2 register. */
-    SYSTEM.SCKCR2.WORD = sckcr2;
-
-    /* Choose clock source. Default for r_bsp_config.h is PLL. */
-    SYSTEM.SCKCR3.BIT.CKSEL = 4;
-
-    /* We can now turn LOCO off since it is not going to be used. */
-    SYSTEM.LOCOCR.BYTE = 0x01;
-
-    /* Protect on. */
-    SYSTEM.PRCR.WORD = 0xA500;
-}
-
-/***********************************************************************************************************************
-* Function name: clock_source_select
-* Description  : Enables and disables clocks as chosen by the user. This function also implements the delays
-*                needed for the clocks to stabilize.
-* Arguments    : none
-* Return value : none
-***********************************************************************************************************************/
-static void clock_source_select (void)
-{
-    volatile uint8_t i;
-    volatile uint8_t dummy;
-    volatile uint8_t tmp;
-
-    /* Main clock will be not oscillate in software standby or deep software standby modes. */
-    SYSTEM.MOFCR.BIT.MOFXIN = 0;
-
-    /* Set the oscillation source of the main clock oscillator. */
-    SYSTEM.MOFCR.BIT.MOSEL = 0;
-
-    /* Use HOCO if HOCO is chosen or if PLL is chosen with HOCO as source. */
-    /* If HOCO is already operating, it doesn't stop.  */
-    if (1 == SYSTEM.HOCOCR.BIT.HCSTP)
-    {
-        /* Turn off power to HOCO. */
-        SYSTEM.HOCOPCR.BYTE = 0x01;
-    }
-    else
-    {
-        while(0 == SYSTEM.OSCOVFSR.BIT.HCOVF)
-        {
-            /* The delay period needed is to make sure that the HOCO has stabilized. */
-        }
-    }
-
-    /* Use Main clock if Main clock is chosen or if PLL is chosen with Main clock as source. */
-    /* Main clock oscillator is chosen. Start it operating. */
-
-    /* If the main oscillator is >10MHz then the main clock oscillator forced oscillation control register (MOFCR) must
-       be changed. */
-    SYSTEM.MOFCR.BIT.MODRV2 = 2; /* 8 - 16MHz. */
-
-    /* Set the oscillation stabilization wait time of the main clock oscillator. */
-    SYSTEM.MOSCWTCR.BYTE = 0x53;
-
-    /* Set the main clock to operating. */
-    SYSTEM.MOSCCR.BYTE = 0x00;
-
-    if(0x00 ==  SYSTEM.MOSCCR.BYTE)
-    {
-        /* Dummy read and compare. cf."5. I/O Registers", "(2) Notes on writing to I/O registers" in User's manual.
-           This is done to ensure that the register has been written before the next register access. The RX has a
-           pipeline architecture so the next instruction could be executed before the previous write had finished. */
-        nop();
-    }
-
-    while(0 == SYSTEM.OSCOVFSR.BIT.MOOVF)
-    {
-        /* The delay period needed is to make sure that the Main clock has stabilized. */
-    }
-
-    /* Sub-clock setting. */
-
-    /* Cold start setting */
-    if (0 == SYSTEM.RSTSR1.BIT.CWSF)
-    {
-        /* Stop the sub-clock oscillator */
-        /* RCR4 - RTC Control Register 4
-        b7:b1    Reserved - The write value should be 0.
-        b0       RCKSEL   - Count Source Select - Sub-clock oscillator is selected. */
-        RTC.RCR4.BIT.RCKSEL = 0;
-
-        /* dummy read four times */
-        for (i = 0; i < 4; i++)
-        {
-            dummy = RTC.RCR4.BYTE;
-        }
-
-        if (0 != RTC.RCR4.BIT.RCKSEL)
-        {
-            /* Confirm that the written */
-            nop();
-        }
-
-        /* RCR3 - RTC Control Register 3
-        b7:b4    Reserved - The write value should be 0.
-        b3:b1    RTCDV    - Sub-clock oscillator Drive Ability Control.
-        b0       RTCEN    - Sub-clock oscillator is stopped. */
-        RTC.RCR3.BIT.RTCEN = 0;
-
-        /* dummy read four times */
-        for (i = 0; i < 4; i++)
-        {
-            dummy = RTC.RCR3.BYTE;
-        }
-
-        if (0 != RTC.RCR3.BIT.RTCEN)
-        {
-            /* Confirm that the written */
-            nop();
-        }
-
-        /* SOSCCR - Sub-Clock Oscillator Control Register
-        b7:b1    Reserved - The write value should be 0.
-        b0       SOSTP    - Sub-clock oscillator Stop - Sub-clock oscillator is stopped. */
-        SYSTEM.SOSCCR.BYTE = 0x01;
-
-        if (0x01 != SYSTEM.SOSCCR.BYTE)
-        {
-            /* Dummy read and compare. cf."5. I/O Registers", "(2) Notes on writing to I/O registers" in User's manual.
-               This is done to ensure that the register has been written before the next register access. The RX has a
-               pipeline architecture so the next instruction could be executed before the previous write had finished. */
-            nop();
-        }
-
-        while (0 != SYSTEM.OSCOVFSR.BIT.SOOVF)
-        {
-            /* The delay period needed is to make sure that the sub-clock has stopped. */
-        }
-
-
-
-    } else {
-    	/* Warm start setting */
-        /* SOSCCR - Sub-Clock Oscillator Control Register
-        b7:b1    Reserved - The write value should be 0.
-        b0       SOSTP    - Sub-clock oscillator Stop - Sub-clock oscillator is stopped. */
-        SYSTEM.SOSCCR.BYTE = 0x01;
-
-        if (0x01 != SYSTEM.SOSCCR.BYTE)
-        {
-            /* Dummy read and compare. cf."5. I/O Registers", "(2) Notes on writing to I/O registers" in User's manual.
-               This is done to ensure that the register has been written before the next register access. The RX has a
-               pipeline architecture so the next instruction could be executed before the previous write had finished. */
-            nop();
-        }
-
-        while (0 != SYSTEM.OSCOVFSR.BIT.SOOVF)
-        {
-            /* Confirm that the Sub clock stopped. */
-        }
-
-    }
-
-
-    /* Set PLL Input Divisor. */
-    SYSTEM.PLLCR.BIT.PLIDIV = 0;
-
-    /* Clear PLL clock source if PLL clock source is Main clock.  */
-    SYSTEM.PLLCR.BIT.PLLSRCSEL = 0;
-
-    /* Set PLL Multiplier. */
-    SYSTEM.PLLCR.BIT.STC = 0x27; // x20
-
-    /* Set the PLL to operating. */
-    SYSTEM.PLLCR2.BYTE = 0x00;
-
-    while(0 == SYSTEM.OSCOVFSR.BIT.PLOVF)
-    {
-        /* The delay period needed is to make sure that the PLL has stabilized. */
-    }
-
-
-    /* LOCO is saved for last since it is what is running by default out of reset. This means you do not want to turn
-       it off until another clock has been enabled and is ready to use. */
-    /* LOCO is not chosen but it cannot be turned off yet since it is still being used. */
-
-    /* Make sure a valid clock was chosen. */
-
-    /* RX65N has a ROMWT register which controls the cycle waiting for access to code flash memory.
-       It is set as zero coming out of reset.
-       When setting ICLK to [50 MHz < ICLK <= 100 MHz], set the ROMWT.ROMWT[1:0] bits to 01b.
-       When setting ICLK to [100 MHz < ICLK <= 120 MHz], set the ROMWT.ROMWT[1:0] bits to 10b. */
-    SYSTEM.ROMWT.BYTE = 0x02;
+	return ;
 }

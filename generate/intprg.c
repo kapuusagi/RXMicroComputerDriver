@@ -1,17 +1,3 @@
-                                                                          
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                          
 /************************************************************************
 *
 * Device     : RX/RX600/RX65N
@@ -73,10 +59,10 @@ void Excep_ICU_SWINT2(void){ }
 void Excep_ICU_SWINT(void){ }
 
 // CMT0 CMI0
-void Excep_CMT0_CMI0(void){ }
+//void Excep_CMT0_CMI0(void){ }
 
 // CMT1 CMI1
-void Excep_CMT1_CMI1(void){ }
+//void Excep_CMT1_CMI1(void){ }
 
 // CMTW0 CMWI0
 void Excep_CMTW0_CMWI0(void){ }

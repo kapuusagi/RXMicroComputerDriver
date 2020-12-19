@@ -124,14 +124,13 @@ drv_cmt_stop(uint8_t timer_no)
  * #pragma interrupt (xxxxx(vect=VECT(CMT0, CMI0)))は
  * コメントアウトすること。
  */
-#pragma interrupt (cmt0_cmi0_isr(vect=VECT(CMT0, CMI0)))
-#pragma interrupt (cmt1_cmi1_isr(vect=VECT(CMT1, CMI1)))
 
 /**
  * タイマー割り込みハンドラ
  */
-static void
-cmt0_cmi0_isr(void)
+#pragma interrupt (Excep_CMTW0_CMWI0(vect=VECT(CMT0, CMI0)))
+void
+Excep_CMT0_CMI0(void)
 {
 	CMT0.CMCR.BIT.CMIE = 0; // 割り込み停止
 	IR(CMT0, CMI0) = 0;
@@ -139,8 +138,9 @@ cmt0_cmi0_isr(void)
 	CMT0.CMCR.BIT.CMIE = 1; // 割り込み有効
 }
 
-static void
-cmt1_cmi1_isr(void)
+#pragma interrupt (Excep_CMTW1_CMWI1(vect=VECT(CMT1, CMI1)))
+void
+Excep_CMT1_CMI1(void)
 {
 	CMT1.CMCR.BIT.CMIE = 0; // 割り込み停止
 	IR(CMT1, CMI1) = 0;

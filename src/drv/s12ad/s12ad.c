@@ -42,7 +42,7 @@ static void ad_channel_update(ad_channel_t *ch, uint16_t data);
 void
 drv_s12ad_init(void)
 {
-	memset(&ADChannels, 0x0, sizeof(ADChannels));
+	rx_memset(&ADChannels, 0x0, sizeof(ADChannels));
 
 	SYSTEM.PRCR.WORD = 0xA502;
 	MSTP(S12AD) = 0; // S12ADを稼働

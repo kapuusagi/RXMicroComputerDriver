@@ -8,9 +8,8 @@
  * 入力に対してはチャタリング防止のためにフィルタ処理を加えている。
  */
 #include "port.h"
-
+#include "../../rx_utils/rx_utils.h"
 #include <iodefine.h>
-#include <string.h>
 
 /*------------------------------------------------------
  * ポートドライバ定義
@@ -49,8 +48,8 @@ static void input_port_update(struct input_port *port, uint8_t onoff, uint8_t fi
 void
 drv_port_init(void)
 {
-	memset(&OutputPorts, 0x0, sizeof(OutputPorts));
-	memset(&InputPorts, 0x0, sizeof(InputPorts));
+	rx_memset(&OutputPorts, 0x0, sizeof(OutputPorts));
+	rx_memset(&InputPorts, 0x0, sizeof(InputPorts));
 
 	// デバッグLED出力ポート
 	PORT7.PDR.BIT.B0 = 1;

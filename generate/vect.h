@@ -1,17 +1,3 @@
-                                                                          
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                          
 /************************************************************************
 *
 * Device     : RX/RX600/RX65N
@@ -108,12 +94,12 @@ void Excep_ICU_SWINT2(void);
 void Excep_ICU_SWINT(void);
 
 // CMT0 CMI0
-//#pragma interrupt (Excep_CMT0_CMI0(vect=28))
-//void Excep_CMT0_CMI0(void);
+#pragma interrupt (Excep_CMT0_CMI0(vect=28))
+void Excep_CMT0_CMI0(void);
 
 // CMT1 CMI1
-//#pragma interrupt (Excep_CMT1_CMI1(vect=29))
-//void Excep_CMT1_CMI1(void);
+#pragma interrupt (Excep_CMT1_CMI1(vect=29))
+void Excep_CMT1_CMI1(void);
 
 // CMTW0 CMWI0
 #pragma interrupt (Excep_CMTW0_CMWI0(vect=30))

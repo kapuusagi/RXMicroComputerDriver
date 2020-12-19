@@ -4,10 +4,10 @@
 #include "../../rx_utils/rx_types.h"
 
 enum {
-	// 出力ポート
+	/* 出力ポート */
 	PORT_NO_DEBUG_LED_1 = 0,
 
-	// 入力ポート
+	/* 入力ポート */
 	PORT_NO_USER_SW_1,
 	PORT_NO_BTN_UP,
 	PORT_NO_BTN_DOWN,

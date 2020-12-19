@@ -1,17 +1,3 @@
-                                                                          
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-                                                                          
 /*********************************************************************
 *
 * Device     : RX/RX600
@@ -25,11 +11,15 @@
 *            : 1.11  (2011-06-20)
 *            : 1.12  (2014-02-20)
 *            : 1.20  (2014-10-22)
+*            : 1.30  (2018-03-26)
+*            : 1.40  (2018-09-26)
+*            : 1.50  (2019-04-12)
+*            : 1.51  (2019-04-22)
 *
 * NOTE       : THIS IS A TYPICAL EXAMPLE.
 *
-* Copyright (C) 2009 (2014) Renesas Electronics Corporation.
-* and Renesas Solutions Corp.
+* Copyright (C) 2009 (2011-2019) Renesas Electronics Corporation.
+* All rights reserved.
 *
 *********************************************************************/
 
@@ -44,22 +34,24 @@
 extern "C" {
 #endif
 void PowerON_Reset_PC(void);
+#ifdef __cplusplus
+}
+#endif
 void main(void);
+
+#ifdef __cplusplus				// Use Debug console
+extern "C" {
+#endif
+#ifdef DEBUG_CONSOLE
+extern void _INIT_IOLIB(void);
+extern void _CLOSEALL(void);
+#endif
 #ifdef __cplusplus
 }
 #endif
 
-//#ifdef __cplusplus				// Use SIM I/O
-//extern "C" {
-//#endif
-//extern void _INIT_IOLIB(void);
-//extern void _CLOSEALL(void);
-//#ifdef __cplusplus
-//}
-//#endif
-
 #define PSW_init  0x00010000	// PSW bit pattern
-#define FPSW_init 0x00000000	// FPSW bit base pattern
+#define FPSW_DPSW_init 0x00000000	// FPSW/DPSW bit base pattern
 
 //extern void srand(_UINT);		// Remove the comment when you use rand()
 //extern _SBYTE *_s1ptr;				// Remove the comment when you use strtok()
@@ -87,44 +79,55 @@ void main(void);
 
 void PowerON_Reset_PC(void)
 { 
-#ifdef __RXV2
+#if (__RX_ISA_VERSION__ >= 2) || defined(__RXV2)
 	set_extb(__sectop("EXCEPTVECT"));
 #endif
 	set_intb(__sectop("C$VECT"));
 
 #ifdef __FPU
-#ifdef __ROZ					// Initialize FPSW
-#define _ROUND 0x00000001			// Let FPSW RMbits=01 (round to zero)
+#ifdef __ROZ						// Initialize FPSW/DPSW
+#define _ROUND 0x00000001			// Let FPSW/DPSW RM/DRM bits=01 (round to zero)
 #else
-#define _ROUND 0x00000000			// Let FPSW RMbits=00 (round to nearest)
+#define _ROUND 0x00000000			// Let FPSW/DPSW RM/DRM bits=00 (round to nearest)
 #endif
 #ifdef __DOFF
-#define _DENOM 0x00000100			// Let FPSW DNbit=1 (denormal as zero)
+#define _DENOM 0x00000100			// Let FPSW/DPSW DN/DDN bit=1 (denormal as zero)
 #else
-#define _DENOM 0x00000000			// Let FPSW DNbit=0 (denormal as is)
+#define _DENOM 0x00000000			// Let FPSW/DPSW DN/DDN bit=0 (denormal as is)
 #endif
-	set_fpsw(FPSW_init | _ROUND | _DENOM);
+	set_fpsw(FPSW_DPSW_init | _ROUND | _DENOM);
+#ifdef __DPFPU
+	__set_dpsw(FPSW_DPSW_init | _ROUND | _DENOM);
+#endif
+#endif
+
+#ifdef __TFU
+	__init_tfu();					// Initialize TFU
 #endif
 
 	_INITSCT();
 
-//	_INIT_IOLIB();					// Use SIM I/O
+#ifdef DEBUG_CONSOLE
+	_INIT_IOLIB();					// Use Debug console
+#endif
 
 //	errno=0;						// Remove the comment when you use errno
 //	srand((_UINT)1);					// Remove the comment when you use rand()
 //	_s1ptr=NULL;					// Remove the comment when you use strtok()
 		
 //	HardwareSetup();				// Use Hardware Setup
-    nop();
 
 //	_CALL_INIT();					// Remove the comment when you use global class object
 
-	set_psw(PSW_init);				// Set Ubit & Ibit for PSW
+	set_psw(PSW_init);				// Initialize Ubit & Ibit for PSW
 //	chg_pmusr();					// Remove the comment when you need to change PSW PMbit (SuperVisor->User)
 
 	main();
 
-//	_CLOSEALL();					// Use SIM I/O
+#ifdef DEBUG_CONSOLE
+	_CLOSEALL();					// Use Debug console
+#endif
+
 	
 //	_CALL_END();					// Remove the comment when you use global class object
 
