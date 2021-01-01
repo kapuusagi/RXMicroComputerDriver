@@ -31,7 +31,7 @@ void abort(void);
 #endif
 
 static void
-timer_task(void *arg)
+timer_task(uint32_t elapse_millis)
 {
 	uint8_t d;
 
@@ -42,7 +42,7 @@ timer_task(void *arg)
 }
 
 static void
-timer_task_1ms(void *arg)
+timer_task_1ms(uint32_t elapse_millis)
 {
 	drv_s12ad_update();
 }
@@ -57,8 +57,8 @@ main(void)
 
 	drv_s12ad_start(AD_CHANNEL_1);
 
-	drv_cmt_start(TIMER_NO_1, 5000, timer_task, 0);
-	drv_cmt_start(TIMER_NO_2, 1, timer_task_1ms, 0);
+	drv_cmt_start(TIMER_1, 5000, timer_task);
+	drv_cmt_start(TIMER_2, 1, timer_task_1ms);
 
 	rx_util_wait();
 

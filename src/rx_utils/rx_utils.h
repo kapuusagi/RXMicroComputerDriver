@@ -35,6 +35,8 @@
 			(__port__).PMR.BIT.__bit__ = 1; \
 		}
 
+#define RX_MAX_PRIORITY 15
+
 #ifdef __cplusplus
 extern "C" {
 #endif
