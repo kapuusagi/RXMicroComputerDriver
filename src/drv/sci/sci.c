@@ -469,18 +469,6 @@ sci0_rx_intr_handler(struct sci0_entry *entry)
 }
 
 /* 割り込みハンドラ */
-#pragma interrupt(INT_Excep_SCI1_TXI1(vect=VECT(SCI1, TXI1)))
-void
-INT_Excep_SCI1_TXI1(void)
-{
-    sci0_tx_intr_handler(&Sci1);
-}
-#pragma interrupt(INT_Excep_SCI1_RXI1(vect=VECT(SCI1, RXI1)))
-void
-INT_Excep_SCI1_RXI1(void)
-{
-    sci0_rx_intr_handler(&Sci1);
-}
 #pragma interrupt(INT_Excep_SCI5_TXI5(vect=VECT(SCI5, TXI5)))
 void
 INT_Excep_SCI5_TXI5(void)
@@ -494,15 +482,4 @@ INT_Excep_SCI5_RXI5(void)
     sci0_rx_intr_handler(&Sci5);
 }
 
-#pragma interrupt(INT_Excep_SCI6_TXI6(vect=VECT(SCI6, TXI6)))
-void
-INT_Excep_SCI6_TXI6(void)
-{
-    sci0_tx_intr_handler(&Sci6);
-}
-#pragma interrupt(INT_Excep_SCI6_RXI6(vect=VECT(SCI6, RXI6)))
-void
-INT_Excep_SCI6_RXI6(void)
-{
-    sci0_rx_intr_handler(&Sci6);
-}
+
