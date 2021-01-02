@@ -48,8 +48,8 @@
 
 struct timer_data {
     timer_handler_t handler; /* ハンドラ */
-    uint32_t count; /* 現在のカウンタ値 */
-    uint32_t max_count; /* カウンタ値の最大 */
+    uint32_t time_counter; /* 前回実行時のカウンタ値 */
+    uint32_t interval_millis; /* カウンタ値の最大 */
 };
 
 /**
@@ -395,11 +395,11 @@ Excep_CMT1_CMI1(void)
 static void
 timer_proc(struct timer_data *timer)
 {
-    timer->count++;
-    if (timer->count >= timer->max_count) {
-        /* 指定μ秒経過したのでハンドラを呼び出す。 */
+	uint32_t elapse = TimerCounter - timer->time_counter;
+    if (elapse >= timer->interval_millis) {
+        /* 指定ミリ秒経過したのでハンドラを呼び出す。 */
+    	timer->time_counter = TimerCounter;
         timer->handler(TIMER_TICK);
-        timer->count = 0;
     }
 
     return ;
@@ -416,8 +416,11 @@ static void
 timer_set(struct timer_data *timer, uint32_t interval_msec,
         timer_handler_t handler)
 {
-    timer->count = 0;
-    timer->max_count = interval_msec;
+	/* time_counterの初期値をinterval_msecより前にすることで、
+	 * 最初のタイマー割り込みで実行されるようにする。
+	 * 初回呼び出しを遅延させたい場合には、ここで減算する値に加算すればよい。 */
+    timer->time_counter = TimerCounter - interval_msec;
+    timer->interval_millis = interval_msec;
     timer->handler = handler;
 }
 
@@ -428,8 +431,8 @@ timer_set(struct timer_data *timer, uint32_t interval_msec,
 static void
 timer_clear(struct timer_data *timer)
 {
-    timer->count = 0;
+    timer->time_counter = 0;
     timer->handler = 0;
-    timer->max_count = 0;
+    timer->interval_millis = 0;
 }
 
