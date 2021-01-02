@@ -10,6 +10,7 @@
 
 enum {
     SCI_CH_DEBUG = 0,
+	SCI_CH_1
 };
 
 

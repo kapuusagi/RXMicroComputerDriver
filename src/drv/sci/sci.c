@@ -28,6 +28,26 @@ struct sci0_entry {
     const struct sci_config *config;
 };
 
+
+/**
+ * SCIコンフィグ
+ */
+static const struct sci_config Ch1Config = {
+	.baudrate = 115200,
+    .data_bits = 8, /* データビット長 = 8 */
+    .stop_bits = 1, /* ストップビット=1 */
+    .parity = 0, /* パリティなし */
+    .flow_en = 0 /* フロー制御なし */
+};
+
+/**
+ * SCI5 : SCI CH1 I/F
+ */
+static struct sci0_entry Sci5 = {
+    .sci = &(SCI5),
+    .config = &Ch1Config
+};
+
 /**
  * デバッグ用UARTコンフィグ
  */
@@ -39,48 +59,9 @@ static const struct sci_config DebugSCIConfig = {
     .flow_en = 0 /* フロー制御なし */
 };
 
-/**
- * SCI1 : デバッグ用UART
- */
-static struct sci0_entry Sci1 = {
-    .sci = &(SCI1),
-    .config = &DebugSCIConfig
-};
-
-/**
- * Bluetoothモジュール SCIコンフィグ
- */
-static const struct sci_config BluetoothSCIConfig = {
-    .baudrate = 115200,
-    .data_bits = 8, /* データビット長 = 8 */
-    .stop_bits = 1, /* ストップビット=1 */
-    .parity = 0, /* パリティなし */
-    .flow_en = 0 /* フロー制御なし */
-};
-/**
- * SCI5 : Bluetooth モジュールI/F
- */
-static struct sci0_entry Sci5 = {
-    .sci = &(SCI5),
-    .config = &BluetoothSCIConfig
-};
-
-/**
- * コンプレッサ用SCIコンフィグ
- */
-static const struct sci_config CompressorSCIConfig = {
-    .baudrate = 2400, /* 2400bps */
-    .data_bits = 8, /* データビット長 = 8 */
-    .stop_bits = 1, /* ストップビット = 1 */
-    .parity = 0, /* パリティなし */
-    .flow_en = 0 /* フロー制御なし */
-};
-/**
- * SCI6 : コンプレッサ I/F
- */
-static struct sci0_entry Sci6 = {
-    .sci = &(SCI6),
-    .config = &CompressorSCIConfig
+static struct sci0_entry Sci9 = {
+	.sci = &(SCI9),
+	.config = &DebugSCIConfig
 };
 
 static struct sci0_entry* get_sci_entry(uint8_t ch);
@@ -100,8 +81,11 @@ drv_sci_init(void)
 {
     SYSTEM.PRCR.WORD = 0xA502;
     MSTP(SCI5) = 0; /* SCI5動作 */
+    MSTP(SCI9) = 0; /* SCI9動作 */
     SYSTEM.PRCR.WORD = 0xA500;
 
+    RX_UTIL_SET_INPUT_FUNC_PORT(PORTB, B6); /* SCI9 RX */
+    RX_UTIL_SET_OUTPUT_FUNC_PORT(PORTB, B7); /* SCI9 TX */
     RX_UTIL_SET_INPUT_FUNC_PORT(PORTC, B2); /* SCI5 RX */
     RX_UTIL_SET_OUTPUT_FUNC_PORT(PORTC, B3); /* SCI5 TX */
 
@@ -110,6 +94,14 @@ drv_sci_init(void)
      * P0WIに0を書いてからPFSWE=1に設定し、ピン設定を変更する。 */
     MPC.PWPR.BIT.B0WI = 0;
     MPC.PWPR.BIT.PFSWE = 1;
+
+    /* PB6PFS/PB7PFS
+     * b7: 0 (reserved)
+     * b6: 0 IRQn入力端子として使用しない。
+     * b5-b0: 0x0a RXD9/TXD9
+     */
+    MPC.PB6PFS.BYTE = 0x0a; /* PB6 RXD9 */
+    MPC.PB7PFS.BYTE = 0x0a; /* PB7 TXD9 */
     /* PC2PFS/PC3PFS
      * b7: 0 (reserved)
      * b6: 0 IRQn入力端子として使用しない。
@@ -122,12 +114,17 @@ drv_sci_init(void)
     MPC.PWPR.BIT.B0WI = 1;
 
     sci0_init(&Sci5);
+    sci0_init(&Sci9);
 
     IPR(SCI5, TXI5) = SCI_INTERRUPT_PRIORITY;
     IPR(SCI5, RXI5) = SCI_INTERRUPT_PRIORITY;
+    IPR(SCI9, TXI9) = SCI_INTERRUPT_PRIORITY;
+    IPR(SCI9, RXI9) = SCI_INTERRUPT_PRIORITY;
 
     IEN(SCI5, TXI5) = 1;
     IEN(SCI5, RXI5) = 1;
+    IEN(SCI9, TXI9) = 1;
+    IEN(SCI9, RXI9) = 1;
 
     return ;
 }
@@ -139,13 +136,18 @@ drv_sci_destroy(void)
 {
     IEN(SCI5, TXI5) = 0;
     IEN(SCI5, RXI5) = 0;
+    IEN(SCI9, TXI9) = 0;
+    IEN(SCI9, RXI9) = 0;
 
     EN(SCI5, ERI5) = 0; /* 受信エラー割り込み禁止 */
+    EN(SCI9, ERI9) = 0; /* 受信エラー割り込み禁止 */
 
     sci0_destroy(&Sci5);
+    sci0_destroy(&Sci9);
 
     SYSTEM.PRCR.WORD = 0xA502;
     MSTP(SCI5) = 1; /* SCI5停止 */
+    MSTP(SCI9) = 1; /* SCI9停止 */
     SYSTEM.PRCR.WORD = 0xA500;
 
     return ;
@@ -207,10 +209,12 @@ static struct sci0_entry*
 get_sci_entry(uint8_t ch)
 {
     switch (ch) {
-        case SCI_CH_DEBUG:
-            return &Sci1;
-        default:
-            return NULL;
+    case SCI_CH_1:
+    	return &Sci5;
+	case SCI_CH_DEBUG:
+		return &Sci9;
+	default:
+		return NULL;
     }
 }
 
@@ -482,4 +486,17 @@ INT_Excep_SCI5_RXI5(void)
     sci0_rx_intr_handler(&Sci5);
 }
 
+#pragma interrupt(INT_Excep_SCI9_TXI9(vect=VECT(SCI9, TXI9)))
+void
+INT_Excep_SCI9_TXI9(void)
+{
+	sci0_tx_intr_handler(&Sci9);
+}
 
+
+#pragma interrupt(INT_Excep_SCI9_RXI9(vect=VECT(SCI9, RXI9)))
+void
+INT_Excep_SCI9_RXI9(void)
+{
+	sci0_rx_intr_handler(&Sci9);
+}

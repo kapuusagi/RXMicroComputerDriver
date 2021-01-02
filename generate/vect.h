@@ -94,12 +94,12 @@ void Excep_ICU_SWINT2(void);
 //void Excep_ICU_SWINT(void);
 
 // CMT0 CMI0
-#pragma interrupt (Excep_CMT0_CMI0(vect=28))
-void Excep_CMT0_CMI0(void);
+//#pragma interrupt (Excep_CMT0_CMI0(vect=28))
+//void Excep_CMT0_CMI0(void);
 
 // CMT1 CMI1
-#pragma interrupt (Excep_CMT1_CMI1(vect=29))
-void Excep_CMT1_CMI1(void);
+//#pragma interrupt (Excep_CMT1_CMI1(vect=29))
+//void Excep_CMT1_CMI1(void);
 
 // CMTW0 CMWI0
 #pragma interrupt (Excep_CMTW0_CMWI0(vect=30))
@@ -354,12 +354,12 @@ void Excep_SCI8_RXI8(void);
 void Excep_SCI8_TXI8(void);
 
 // SCI9 RXI9
-#pragma interrupt (Excep_SCI9_RXI9(vect=102))
-void Excep_SCI9_RXI9(void);
+//#pragma interrupt (Excep_SCI9_RXI9(vect=102))
+//void Excep_SCI9_RXI9(void);
 
 // SCI9 TXI9
-#pragma interrupt (Excep_SCI9_TXI9(vect=103))
-void Excep_SCI9_TXI9(void);
+//#pragma interrupt (Excep_SCI9_TXI9(vect=103))
+//void Excep_SCI9_TXI9(void);
 
 // SCI10 RXI10
 #pragma interrupt (Excep_SCI10_RXI10(vect=104))

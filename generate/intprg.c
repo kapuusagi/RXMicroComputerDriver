@@ -242,10 +242,10 @@ void Excep_SCI8_RXI8(void){ }
 void Excep_SCI8_TXI8(void){ }
 
 // SCI9 RXI9
-void Excep_SCI9_RXI9(void){ }
+//void Excep_SCI9_RXI9(void){ }
 
 // SCI9 TXI9
-void Excep_SCI9_TXI9(void){ }
+//void Excep_SCI9_TXI9(void){ }
 
 // SCI10 RXI10
 void Excep_SCI10_RXI10(void){ }
