@@ -345,7 +345,7 @@ is_valid_timer_exists(void)
 /**
  * タイマー割り込みハンドラ
  */
-#pragma interrupt (Excep_CMTW0_CMWI0(vect=VECT(CMT0, CMI0)))
+#pragma interrupt (Excep_CMT0_CMI0(vect=VECT(CMT0, CMI0)))
 void
 Excep_CMT0_CMI0(void)
 {
@@ -359,7 +359,7 @@ Excep_CMT0_CMI0(void)
     CMT0.CMCR.BIT.CMIE = 1; /* CMI0 割り込み許可 */
 }
 
-#pragma interrupt (Excep_CMTW1_CMWI1(vect=VECT(CMT1, CMI1)))
+#pragma interrupt (Excep_CMT1_CMI1(vect=VECT(CMT1, CMI1)))
 void
 Excep_CMT1_CMI1(void)
 {
