@@ -40,6 +40,7 @@ struct task_param {
 struct task_entry {
 	struct task_entry *prev;
     struct task_entry *next;
+    struct task_entry *wait_next;
     struct task_param param;
     uint32_t *stack;
 };

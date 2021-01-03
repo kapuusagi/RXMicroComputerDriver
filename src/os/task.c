@@ -1,5 +1,6 @@
 /**
- * @file
+ * @file タスクエントリ。
+ *       タスクエントリの初期化と破棄処理の定義を記述する。
  * @author 
  */
 
@@ -14,6 +15,9 @@
 void
 task_init(struct task_entry *entry)
 {
+	entry->prev = NULL;
+	entry->next = NULL;
+	entry->wait_next = NULL;
     entry->param.id = 0;
     entry->param.state = TASK_STATE_DEAD;
     entry->param.priority = 0;

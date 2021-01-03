@@ -9,20 +9,26 @@
 #include "../drv/cmt/cmt.h"
 #include "task.h"
 #include "task_list.h"
+#include "wait_object_list.h"
 #include "kernel.h"
 
 static void* init_stack(void *stack, void *func, void *arg);
 static struct task_entry *next_task(void);
+static void update_waiting_objects(void);
 static void update_waiting_tasks(void);
 static int update_waiting_condition(struct task_entry *entry);
 static void task_entry_proc(struct task_param *param);
-static int is_all_task_waiting(void);
 
 
 /**
  * スケジューラが動作中かどうか。
  */
 static volatile uint8_t IsSchedulerRuning = 0;
+
+/**
+ * コンテキストスイッチを有効にするかどうか
+ */
+static uint8_t ContextSwitchEnable = 0;
 /**
  * 戻りコンテキストブロック
  */
@@ -68,6 +74,8 @@ static struct task_list WaitingEntries;
  */
 static struct task_list ActiveEntries;
 
+static struct wait_object_list WaitObjectList;
+
 /**
  * タスクデータ
  */
@@ -77,7 +85,7 @@ static struct task_entry TaskEntries[MAX_TASKS];
 /**
  * タスクIDジェネレータ
  */
-static uint16_t TaskIdGen = 0;
+static uint16_t TaskIdGen = 1;
 
 /**
  * カーネルを初期化する。
@@ -127,7 +135,11 @@ kernel_register_task(uint16_t priority,
         return -1;
     }
 
-    uint8_t id = TaskIdGen++;
+    task_id_t id = TaskIdGen;
+    TaskIdGen++;
+    if (TaskIdGen > 9999) {
+    	TaskIdGen = 1;
+    }
     void* usp = init_stack(stack + stack_size / sizeof(stack_type_t),
             task_entry_proc, &(entry->param));
     task_setup(entry, id, priority, func, arg, usp);
@@ -189,6 +201,7 @@ kernel_start_scheduler(void)
     IsSchedulerRuning = 1;
 
     task_list_init(&WaitingEntries);
+    wait_object_list_init(&WaitObjectList);
 
     /* 戻ってこれるように、現在のTCBを保存するようにする。 */
     CurrentTcb = &ReturnTcb;
@@ -197,12 +210,69 @@ kernel_start_scheduler(void)
     CurrentTask = NULL;
 
 	/* ソフトウェア割り込み発行してコンテキストスイッチする */
+    ContextSwitchEnable = 1;
 	ICU.SWINTR.BIT.SWINT = 1;
 
-    /* ここに制御が返るのは、全てのスレッドが完了している場合のみ(たぶん) */
-    IsSchedulerRuning = 0;
+	while (IsSchedulerRuning) {
+		rx_util_wait();
+	}
+
+    /* ここに制御が返るのは、全てのスレッドが完了している場合のみ */
 }
 
+/**
+ * コンテキストスイッチを無効にする。
+ */
+void
+kernel_disable_context_switch(void)
+{
+	ContextSwitchEnable = 0;
+}
+
+/**
+ * コンテキストスイッチを有効にする。
+ */
+void
+kernel_enable_context_switch(void)
+{
+	/* IsSchedulerRuningが有効なときだけ設定可能 */
+	ContextSwitchEnable = IsSchedulerRuning;
+}
+
+/**
+ * タスクが存在しているかどうかを取得する。
+ *
+ * @param taskid タスクID
+ * @return 生存している場合には非ゼロの値、生存していない場合には0が返る。
+ */
+int
+kernel_task_is_alive(int taskid)
+{
+	for (int i = 0; i < MAX_TASKS; i++) {
+		const struct task_entry *entry = &(TaskEntries[i]);
+		if (entry->param.id == taskid) {
+			return (entry->param.state != TASK_STATE_DEAD);
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * 現在のタスクのIDを得る。
+ *
+ * @return タスクID
+ */
+int
+kernel_get_self_id(void)
+{
+	const struct task_entry *entry = CurrentTask;
+	if (entry != NULL) {
+		return entry->param.id;
+	} else {
+		return 0;
+	}
+}
 
 
 /**
@@ -215,6 +285,11 @@ kernel_update_scheduler(void)
 		if (CurrentTask->param.state == TASK_STATE_DEAD) {
 			task_list_add(&BlankEntries, CurrentTask);
 		} else if (CurrentTask->param.state == TASK_STATE_WAITING) {
+			if (CurrentTask->param.syscall_type == SYSCALL_WAIT_OBJECT) {
+				/* ウォッチするため、待機オブジェクトリストに追加する。 */
+				struct wait_object *wait_obj = CurrentTask->param.sysc.wait_object;
+				wait_object_list_add(&WaitObjectList, wait_obj);
+			}
 			task_list_add(&WaitingEntries, CurrentTask);
 		} else {
 			CurrentTask->param.state = TASK_STATE_PENDING;
@@ -222,6 +297,9 @@ kernel_update_scheduler(void)
 		}
 		CurrentTask = NULL;
 	}
+
+	/* 待機オブジェクトを更新する */
+	update_waiting_objects();
 
 	/* Waitingステートのタスクを更新し、待機完了したタスクをスケジューラに回す */
 	update_waiting_tasks();
@@ -235,18 +313,22 @@ kernel_update_scheduler(void)
 	    	/* タスクが全てなくなった */
 	    	break;
 	    } else {
-	    	/* WaitingEntriesの待機解除されるまで回す */
+	    	/* WaitingEntriesの待機解除され無い場合には、待機状態を更新する。 */
+	    	ContextSwitchEnable = 0;
 	    	rx_util_enable_interrupt();
 	    	rx_util_set_ipl(0);
+	    	/* update_waiting_objectは、他のタスクが実行されているわけではないので更新不要 */
 	    	update_waiting_tasks();
 	    	rx_util_set_ipl(KERNEL_PRIORITY);
 	    	rx_util_disable_interrupt();
+	    	ContextSwitchEnable = 1;
 	    }
 	}
     if (CurrentTask != NULL) {
     	CurrentTask->param.state = TASK_STATE_ACTIVE;
         CurrentTcb = &(CurrentTask->param.tcb);
     } else {
+    	IsSchedulerRuning = 0;
         CurrentTcb = &(ReturnTcb);
     }
 }
@@ -279,6 +361,25 @@ next_task(void)
 }
 
 /**
+ * 待機オブジェクトの状態を更新する。
+ */
+static void
+update_waiting_objects(void)
+{
+	struct wait_object *wait_obj = wait_object_list_head(&WaitObjectList);
+	while (wait_obj != NULL) {
+		struct wait_object *next_obj = wait_obj;
+		/* wait_object 更新 */
+		wait_object_update(next_obj);
+		if (!wait_object_has_wait_entries(next_obj)) {
+			wait_object_list_remove(&WaitObjectList, wait_obj);
+		}
+		wait_obj = wait_obj->next;
+	}
+}
+
+
+/**
  * 待機タスクの状態を更新する。
  */
 static void
@@ -287,14 +388,14 @@ update_waiting_tasks(void)
 	/* 待機条件を更新してアクティブ列に渡す */
 	struct task_entry *entry = task_list_head(&WaitingEntries);
 	while (entry != NULL) {
-		struct task_entry *next = entry->next;
+		struct task_entry *next_entry = entry->next;
 		if (update_waiting_condition(entry)) {
 			/* 待機完了したので、アクティブ列に戻す */
 			task_list_remove(&WaitingEntries, entry);
 			entry->param.state = TASK_STATE_PENDING;
 			task_list_add(&ActiveEntries, entry);
 		}
-		entry = next;
+		entry = next_entry;
 	}
 }
 
@@ -312,10 +413,15 @@ update_waiting_condition(struct task_entry *entry)
 
 	switch (entry->param.syscall_type) {
 	case SYSCALL_WAIT_MSEC:
-		{
-			uint32_t now = drv_cmt_get_counter();
-			return ((now - sysc->wait.begin) >= sysc->wait.wait_millis);
-		}
+	{
+		uint32_t now = drv_cmt_get_counter();
+		return ((now - sysc->wait.begin) >= sysc->wait.wait_millis);
+	}
+	case SYSCALL_WAIT_OBJECT:
+	{
+		struct wait_object *wait_obj = sysc->wait_object;
+		return (wait_obj == NULL) || !wait_object_is_waiting_entry(wait_obj, entry);
+	}
 	default:
 		return 1;
 	}
@@ -347,26 +453,13 @@ task_entry_proc(struct task_param *param)
 void
 kernel_request_swtich(void)
 {
-	if (!is_all_task_waiting()) {
+	if (ContextSwitchEnable) {
 		/* アクティブなタスクが存在する時だけ割り込みを入れて切り替える。
 		 * これをやらないと、待機タスク解除待ちをしている時に通知され、
 		 * スタックオーバーフローする。 */
         ICU.SWINTR.BIT.SWINT = 1;
 	}
 }
-
-/**
- * 全てのタスクが待機状態かどうかを取得する。
- * スケジューラが動いていないか、全てのタスクが待機状態になっているとき、この関数は非ゼロを返す。
- *
- * @return 全てのタスクが待機状態の場合には非ゼロの値, それ以外は0
- */
-static int
-is_all_task_waiting(void)
-{
-	return (CurrentTask == NULL) && task_list_is_empty(&ActiveEntries);
-}
-
 
 /**
  * 現在実行中のタスクに待機要求を出すする。
@@ -376,12 +469,46 @@ is_all_task_waiting(void)
 void
 kernel_sysc_wait(uint32_t wait_millis)
 {
+	kernel_disable_context_switch();
 	struct task_entry *entry = CurrentTask;
-
 	entry->param.syscall_type = SYSCALL_WAIT_MSEC;
 	entry->param.sysc.wait.begin = drv_cmt_get_counter();
 	entry->param.sysc.wait.wait_millis = wait_millis;
 	entry->param.state = TASK_STATE_WAITING;
+	kernel_enable_context_switch();
 	kernel_request_swtich();
+	while (entry->param.state == TASK_STATE_WAITING) {
+		rx_util_nop();
+	}
+}
+
+/**
+ * 他のタスクにCPUの使用権を譲る。
+ */
+void
+kernel_sysc_yield(void)
+{
+	kernel_sysc_wait(1);
+}
+
+/**
+ * 待機オブジェクトに対する待機処理を要求する
+ *
+ * @param wait_obj 待機オブジェクト
+ */
+void
+kernel_sysc_wait_object(struct wait_object *wait_obj)
+{
+	kernel_disable_context_switch();
+	struct task_entry *entry = CurrentTask;
+	entry->param.syscall_type = SYSCALL_WAIT_OBJECT;
+	entry->param.sysc.wait_object = wait_obj;
+	wait_object_add(wait_obj, entry);
+	entry->param.state = TASK_STATE_WAITING;
+	kernel_enable_context_switch();
+	kernel_request_swtich();
+	while (entry->param.state == TASK_STATE_WAITING) {
+		rx_util_nop();
+	}
 }
 
