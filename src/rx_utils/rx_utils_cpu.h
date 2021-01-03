@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-void rx_util_nop();
+void rx_util_nop(void);
 void rx_util_wait(void);
 void rx_util_enable_interrupt(void);
 void rx_util_disable_interrupt(void);
