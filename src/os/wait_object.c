@@ -1,5 +1,5 @@
 /**
- * @file
+ * @file 待機オブジェクト
  * @author 
  */
 #include "../rx_utils/rx_types.h"

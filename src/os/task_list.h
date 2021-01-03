@@ -28,8 +28,6 @@ void task_list_remove(struct task_list *list, struct task_entry *entry);
 int task_list_is_empty(struct task_list *list);
 
 
-
-
 #ifdef __cplusplus
 }
 #endif

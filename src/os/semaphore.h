@@ -1,5 +1,5 @@
 /**
- * @file
+ * @file セマフォ
  * @author 
  */
 

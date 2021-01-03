@@ -1,5 +1,7 @@
 /**
- * @file
+ * @file セマフォ実装
+ *       待ちを解放する順番はFIFOで実装してある。
+ *       プライオリティは考慮してない。
  * @author 
  */
 
@@ -23,6 +25,12 @@ sem_init(struct semaphore *sem, uint16_t initial_count)
 
 	return;
 }
+
+/**
+ * セマフォを破棄する。
+ *
+ * @param sem セマフォ
+ */
 void
 sem_destroy(struct semaphore *sem)
 {
