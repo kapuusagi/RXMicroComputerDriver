@@ -12,6 +12,7 @@
 #include "os/kernel_api.h"
 
 static struct semaphore Sem;
+static struct mutex Mutex;
 
 static stack_type_t Task1Stack[128];
 static stack_type_t Task2Stack[128];
@@ -23,11 +24,13 @@ static int Task2Id = 0;
 static void
 task1(void *arg)
 {
+	mutex_lock(&Mutex);
 	const char *name = (const char*)(arg);
 	for (int i = 0; i < 10; i++) {
 		sem_wait(&Sem);
 		rx_debug("%s\n", name);
 	}
+	mutex_unlock(&Mutex);
 
 	return ;
 }
@@ -37,10 +40,12 @@ task2(void *arg)
 {
 	const char *name = (const char*)(arg);
 
+	mutex_lock(&Mutex);
 	for (int i = 0; i < 5; i++) {
 		sem_wait(&Sem);
 		rx_debug("%s\n", name);
 	}
+	mutex_unlock(&Mutex);
 
 	return ;
 }
@@ -51,7 +56,7 @@ task3(void *arg)
 	const char *name = (const char*)(arg);
 	rx_debug("%s\n", name);
 
-	while (kernel_task_is_alive(Task1Id) && kernel_task_is_alive(Task2Id)) {
+	while (kernel_task_is_alive(Task1Id) || kernel_task_is_alive(Task2Id)) {
 		sleep(1000);
 		rx_debug("%s post one.\n", name);
 		sem_post(&Sem);
@@ -101,6 +106,7 @@ main(void)
 	drv_cmt_delay_ms(1000);
 	while (1) {
 		sem_init(&Sem, 0);
+		mutex_init(&Mutex);
 
 		Task1Id = kernel_register_task(11, task1, "task1", Task1Stack, sizeof(Task1Stack));
 		Task2Id = kernel_register_task(10, task2, "task2", Task2Stack, sizeof(Task2Stack));

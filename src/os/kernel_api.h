@@ -8,6 +8,7 @@
 #define KERNEL_API_H_
 
 #include "semaphore.h"
+#include "mutex.h"
 
 void sleep(uint32_t wait_millis);
 void yield(void);
